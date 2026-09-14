@@ -434,7 +434,8 @@ The internal summary dict logged to `hermes_daily_report.log` still
 records `overall` as `"OK"`/`"ATTENTION"` (English) for audit-log
 consistency; only the human-facing message text changed.
 
-### Telegram Bridge (n8n) - PREPARED, NOT YET LIVE
+### Telegram Bridge (n8n) - LIVE
+
 The interactive `/status`, `/containers`, `/container <name>` replies,
 and the rejection messages (rate-limited, unknown command), are built
 entirely in two n8n Code nodes (`Format Reply (Hermes result)`,
@@ -448,8 +449,15 @@ executing the actual extracted node code against 8 scenarios covering
 the language default, the override, unknown-command help text, the
 error-translation path, and - critically - that the existing chat
 allowlist and rate-limit security behavior are completely unchanged)
-via `hermes_telegram_bridge_i18n_test.js`. It is **not deployed**: per
-this project's established finding that an n8n workflow content change
-only reliably takes live effect after a full `n8n` container restart,
-and per the standing project rule to stop and report before any
-production service restart, this change is staged but not activated.
+via `hermes_telegram_bridge_i18n_test.js`.
+
+**Deployed and verified live** (workflow versionCounter 6 -> 7, `n8n`
+container restarted with explicit authorization to activate the DB
+change): a real `/status` sent from the allowlisted chat produced a
+real, fully Persian reply delivered to Telegram; `/containers` was
+tested the same way immediately after. An unauthorized chat ID was
+confirmed to still get `chat_not_allowed` with the `Send Reply
+(Rejection)` node never executing - i.e. zero message sent, matching
+pre-deployment behavior exactly. Only the `Hermes Telegram Bridge
+(Live)` and `Telegram In/Out` workflows were active before and after
+the restart; no other workflow was touched.
