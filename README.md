@@ -400,3 +400,56 @@ same direct-Telegram resilience pattern as the monitor. Each run:
   health. A human reading the report should factor that in.
 - No automatic remediation exists or was added - every alert is
   notify-only, matching this phase's explicit scope.
+
+## Phase 6: Persian-default language policy
+
+Goal: every user-facing Hermes message (Telegram replies, monitor
+alerts, daily reports) is in Persian by default, with an explicit
+per-message override to English or Japanese. `hermes.py`'s own API
+error strings (e.g. `"unauthorized"`, `"target not allowed"`) were
+deliberately left untouched - they are the Result Contract, asserted on
+exactly by `hermes_security_test.py` and consumed by n8n. Translating
+them would break the security suite and the API contract; presentation
+happens one layer up, where a reply is actually built for a human.
+
+### `hermes_i18n.py` (new)
+Centralized message catalog: `MESSAGES["fa"|"en"|"ja"]`, `t(key, locale)`,
+`severity_label(severity, locale)`. Default locale is `"fa"`. Holds only
+display text (labels/titles) - timestamps, event_id, percentages,
+container names, commit hashes, and severity codes used internally for
+state tracking are never stored here and always pass through unchanged.
+
+### `hermes_monitor.py` (updated)
+`format_alert()` / `format_recovery()` now build Persian text via
+`hermes_i18n`, with severity shown as a Persian word for display only
+(the internal severity code used for dedup/state stays `WARNING`/
+`CRITICAL`, unaffected). Added `send_test_alert()` / `--send-test-alert`
+CLI flag: sends one real, clearly-marked TEST alert through the exact
+same `format_alert()` code path used for real alerts, so a test can
+never be mistaken for - or silently diverge from - a real incident.
+
+### `hermes_daily_report.py` (updated)
+`build_report()` now builds the Persian report via `hermes_i18n`.
+The internal summary dict logged to `hermes_daily_report.log` still
+records `overall` as `"OK"`/`"ATTENTION"` (English) for audit-log
+consistency; only the human-facing message text changed.
+
+### Telegram Bridge (n8n) - PREPARED, NOT YET LIVE
+The interactive `/status`, `/containers`, `/container <name>` replies,
+and the rejection messages (rate-limited, unknown command), are built
+entirely in two n8n Code nodes (`Format Reply (Hermes result)`,
+`Format Reply (Rejection)`) inside the `Hermes Telegram Bridge (Live)`
+workflow - not in `hermes.py`. A Persian-default version of both nodes,
+plus a small per-message language-override added to `Security Gate +
+Route` (trailing word `en`/`english`/`ja`/`jp`/`japanese`/`fa`/`farsi`/
+`persian` on a command switches that one reply's language; no override
+= Persian), was designed and fully tested offline (`node --check` +
+executing the actual extracted node code against 8 scenarios covering
+the language default, the override, unknown-command help text, the
+error-translation path, and - critically - that the existing chat
+allowlist and rate-limit security behavior are completely unchanged)
+via `hermes_telegram_bridge_i18n_test.js`. It is **not deployed**: per
+this project's established finding that an n8n workflow content change
+only reliably takes live effect after a full `n8n` container restart,
+and per the standing project rule to stop and report before any
+production service restart, this change is staged but not activated.

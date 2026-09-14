@@ -25,6 +25,7 @@ GUARD_ALERT_LOGS = [GUARD_LOG_DIR / "defense-alerts.log", GUARD_LOG_DIR / "incid
 
 sys.path.insert(0, str(BASE_DIR))
 import hermes_monitor as hm  # reuses load_env, call_hermes_status, send_telegram, nproc
+from hermes_i18n import t
 
 
 def parse_ts(raw):
@@ -133,36 +134,37 @@ def build_report():
     monitor_alerts = monitor_alerts_last_24h()
     guard_alerts = guard_alerts_last_24h()
 
-    overall = "OK"
-    if problem or actions["failed"] > 0 or monitor_alerts > 0:
-        overall = "ATTENTION"
+    overall_ok = not (problem or actions["failed"] > 0 or monitor_alerts > 0)
+    overall_raw = "OK" if overall_ok else "ATTENTION"  # kept English in the audit log/summary dict
+    overall_display = t("overall_ok") if overall_ok else t("overall_attention")
 
     lines = [
-        "\U0001F4CB Hermes Daily Report",
+        t("report_title"),
         datetime.now(timezone.utc).strftime("%Y-%m-%d") + " (UTC)",
         "",
-        f"uptime: {uptime_days}d {uptime_hours}h",
-        f"load avg: {load1}",
-        f"RAM used: {mem_pct}%",
-        f"disk used: {disk_pct}%",
+        f"{t('report_uptime')}: {uptime_days} {t('day')} {uptime_hours} {t('hour')}",
+        f"{t('report_load')}: {load1}",
+        f"{t('report_ram')}: {mem_pct}%",
+        f"{t('report_disk')}: {disk_pct}%",
         "",
-        f"containers healthy: {healthy}/{len(containers)}",
+        f"{t('report_containers_healthy')}: {healthy}/{len(containers)}",
     ]
     if problem:
-        lines.append(f"containers with problems: {', '.join(problem)}")
+        lines.append(f"{t('report_containers_problem')}: {', '.join(problem)}")
     lines += [
         "",
-        f"Hermes actions (24h): {actions['executed']} executed, {actions['failed']} failed/rejected",
-        f"Hermes monitor alerts (24h): {monitor_alerts}",
-        f"Guard AI security alerts (24h): {guard_alerts}",
+        f"{t('report_actions')}: {actions['executed']} {t('report_actions_executed')}, "
+        f"{actions['failed']} {t('report_actions_failed')}",
+        f"{t('report_monitor_alerts')}: {monitor_alerts}",
+        f"{t('report_guard_alerts')}: {guard_alerts}",
         "",
-        f"overall status: {overall}",
+        f"{t('report_overall')}: {overall_display}",
     ]
     return "\n".join(lines), {
         "uptime_days": uptime_days, "load1": load1, "mem_pct": mem_pct, "disk_pct": disk_pct,
         "healthy": healthy, "total_containers": len(containers), "problem_containers": problem,
         "actions_executed": actions["executed"], "actions_failed": actions["failed"],
-        "monitor_alerts": monitor_alerts, "guard_alerts": guard_alerts, "overall": overall,
+        "monitor_alerts": monitor_alerts, "guard_alerts": guard_alerts, "overall": overall_raw,
     }
 
 
@@ -181,8 +183,8 @@ def run(dry_run=False):
         log_event({"event": "report_failed", "reason": str(e), "event_id": event_id})
         if not dry_run:
             hm.send_telegram(
-                "\U0001F6A8 Hermes Daily Report FAILED to generate\n"
-                f"reason: {e}\nevent_id: {event_id}"
+                f"{t('report_failed_title')}\n"
+                f"{t('report_failed_reason')}: {e}\n{t('label_event_id')}: {event_id}"
             )
         return
 

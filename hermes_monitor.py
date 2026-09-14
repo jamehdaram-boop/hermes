@@ -25,6 +25,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from hermes_i18n import t, severity_label
+
 BASE_DIR = Path(__file__).resolve().parent
 ENV_FILE = BASE_DIR / "hermes.env"
 LOG_DIR = BASE_DIR / "logs"
@@ -178,26 +181,45 @@ def evaluate(status):
     return problems
 
 
-def format_alert(p, event_id):
+def format_alert(p, event_id, test=False):
+    title = t("monitor_test_title" if test else "monitor_alert_title")
     return (
-        "\U0001F6A8 Hermes Monitor Alert\n"
-        f"type: {p['key']}\n"
-        f"target: {p['key']}\n"
-        f"severity: {p['severity']}\n"
-        f"observed: {p['detail']}\n"
-        f"time: {datetime.now(timezone.utc).isoformat()}\n"
-        f"event_id: {event_id}"
+        f"{title}\n"
+        f"{t('label_type')}: {p['key']}\n"
+        f"{t('label_target')}: {p['key']}\n"
+        f"{t('label_severity')}: {severity_label(p['severity'])}\n"
+        f"{t('label_observed')}: {p['detail']}\n"
+        f"{t('label_time')}: {datetime.now(timezone.utc).isoformat()}\n"
+        f"{t('label_event_id')}: {event_id}"
     )
 
 
-def format_recovery(key, event_id):
+def format_recovery(key, event_id, test=False):
+    title = t("monitor_test_recovery_title" if test else "monitor_recovery_title")
     return (
-        "✅ Hermes Monitor Recovery\n"
-        f"type: {key}\n"
-        f"target: {key}\n"
-        f"time: {datetime.now(timezone.utc).isoformat()}\n"
-        f"event_id: {event_id}"
+        f"{title}\n"
+        f"{t('label_type')}: {key}\n"
+        f"{t('label_target')}: {key}\n"
+        f"{t('label_time')}: {datetime.now(timezone.utc).isoformat()}\n"
+        f"{t('label_event_id')}: {event_id}"
     )
+
+
+def send_test_alert():
+    """Send one real, clearly-marked TEST alert through the normal
+    format_alert() path, so the test exercises the exact same code the
+    real alerting path uses. Never confused with a real incident: the
+    key/severity are synthetic and the title says TEST."""
+    event_id = uuid.uuid4().hex
+    p = {
+        "key": "synthetic_test",
+        "severity": "WARNING",
+        "detail": "پیام آزمایشی برای تأیید مسیر هشدار - یک مشکل واقعی نیست",
+    }
+    text = format_alert(p, event_id, test=True)
+    ok, resp = send_telegram(text)
+    log_event({"event": "test_alert", "telegram_sent": ok, "event_id": event_id})
+    return ok, event_id
 
 
 def run(dry_run=False):
@@ -210,8 +232,10 @@ def run(dry_run=False):
         log_event({"event": "check_failed", "reason": "hermes_unreachable", "event_id": event_id})
         if not dry_run:
             send_telegram(
-                "\U0001F6A8 Hermes Monitor Alert\ntype: hermes_unreachable\nseverity: CRITICAL\n"
-                f"time: {datetime.now(timezone.utc).isoformat()}\nevent_id: {event_id}"
+                f"{t('monitor_alert_title')}\n{t('label_type')}: hermes_unreachable\n"
+                f"{t('label_severity')}: {severity_label('CRITICAL')}\n"
+                f"{t('label_time')}: {datetime.now(timezone.utc).isoformat()}\n"
+                f"{t('label_event_id')}: {event_id}"
             )
         write_heartbeat({"hermes_reachable": False})
         return
@@ -266,4 +290,9 @@ def run(dry_run=False):
 
 
 if __name__ == "__main__":
-    run(dry_run="--dry-run" in sys.argv)
+    if "--send-test-alert" in sys.argv:
+        ok, event_id = send_test_alert()
+        print("sent_ok=", ok)
+        print("event_id=", event_id)
+    else:
+        run(dry_run="--dry-run" in sys.argv)
