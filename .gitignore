@@ -1,0 +1,19 @@
+# secrets / environment
+hermes.env
+*.env
+
+# runtime logs
+logs/
+
+# runtime state
+state/
+heartbeat.json
+monitor-heartbeat.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# leftover transfer artifacts (from base64 deploy method)
+*.b64
+*.py.new
