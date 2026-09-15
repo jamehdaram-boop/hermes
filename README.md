@@ -564,3 +564,12 @@ provides sources and stats)
   scope for this phase and every phase before it. No workflow, scraper,
   or schedule for this exists or should be created until the user
   specifies real sources and statistics to use.
+
+## Phase 8: Full agent architecture design
+
+Read-only audit of the current stack plus the target design for
+turning Hermes into a real multi-step agent (AI Brain, Claude
+execution, Browser, Gmail, and the Policy Gate's place in the full
+picture) - see **[AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md)** for
+the complete document. Nothing was activated, installed, or changed in
+production while writing it.
