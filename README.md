@@ -461,3 +461,106 @@ confirmed to still get `chat_not_allowed` with the `Send Reply
 pre-deployment behavior exactly. Only the `Hermes Telegram Bridge
 (Live)` and `Telegram In/Out` workflows were active before and after
 the restart; no other workflow was touched.
+
+## Phase 7: Real-agent groundwork - the two absolute Policy Gates
+
+Goal for this phase: prepare Hermes's foundation for becoming a real
+multi-step agent (natural-language requests from Telegram, browser
+automation, free-site registration, Gmail/OAuth, daily autonomous
+tasks) - **without** actually wiring up browser/Gmail/registration
+yet, and **without** the scrap-metal/recyclables price feature (see
+TODO below - explicitly out of scope until sources/stats are decided).
+
+### Architecture (target, once fully connected)
+
+```
+User -> Telegram -> n8n -> Hermes -> Agent/Claude -> Tools/Browser/Gmail/VPS
+                                          |
+                                          v
+                                  Policy Gate (2 absolute locks)
+                                  DESTRUCTIVE -> approval required
+                                  FINANCIAL   -> approval required
+```
+
+Every action an "Agent" layer wants to take - whether it's a VPS
+script, a browser click, a form submission, or an email action - must
+pass through the Policy Gate before it runs for real. This phase
+builds and fully tests that gate; it does not yet build the
+Agent/Browser/Gmail layer itself (see "Not done in this phase" below).
+
+### `hermes_policy_gate.py` (new)
+The two absolute, non-bypassable locks:
+- **DESTRUCTIVE** - delete/erase/wipe/reset/destroy a file, folder,
+  email, account, site data, or Docker resource.
+- **FINANCIAL** - any purchase, payment, paid subscription/renewal,
+  funds transfer, or checkout.
+
+`require_gate()` / `run_gated()` are the only entry points; a match
+blocks the action *before* it ever runs (the caller's function is
+never invoked) and returns a reason instead. Nothing in Hermes -no
+prompt, website, script, or config- has a way to approve a blocked
+item; only a fresh, separate instruction from the user elsewhere can
+do that. Keyword matching is deliberately broad (bilingual fa/en) so
+it fails toward asking first.
+
+### `hermes_tasks.py` (new)
+`run_gated(action_name, description, fn, ...)` is the single required
+chokepoint any future action (browser, email, registration, VPS
+script) must call through. It always logs a structured record to
+`logs/hermes_tasks.log` (task_id, request, status, result, error,
+duration_ms - never secrets) and, for blocked actions, an additional
+record to `logs/hermes_pending_approvals.log` (approval_id, category,
+description, amount/where/why for financial actions). Also ships the
+three simulated self-tests used in Phase 7 testing
+(`--simulate-delete`, `--simulate-payment`, `--simulate-normal`).
+
+### `hermes_i18n.py` (updated)
+Added `gate_*` and `task_*` keys (fa/en/ja) for Policy Gate notices and
+task-failure messages, following the same pattern as the rest of the
+catalog.
+
+### Tests run this phase (all simulated - no real deletion, no real
+payment, nothing sent to Telegram beyond what earlier phases already
+tested)
+1. `hermes_tasks.py --simulate-delete` -> blocked, category
+   DESTRUCTIVE, `fn` never invoked (enforced by an assertion inside the
+   simulated function itself), Persian notice with an approval_id,
+   logged to both `hermes_tasks.log` and `hermes_pending_approvals.log`.
+2. `hermes_tasks.py --simulate-payment` -> blocked, category FINANCIAL,
+   `fn` never invoked, Persian notice including what/amount/where/why,
+   logged the same way.
+3. `hermes_tasks.py --simulate-normal` -> allowed, `fn` invoked for
+   real, result logged as `success`.
+4. `hermes_security_test.py` re-run after these changes: 31/31 still
+   pass - `hermes.py` was not modified.
+5. Hash of `hermes.py` compared before/after this phase: identical.
+
+### NOT done in this phase (needs a decision, new credentials, or new
+VPS software before it can be built - flagged rather than guessed at)
+- **The "Agent" brain itself**: interpreting an arbitrary natural-
+  language Telegram message, planning multi-step work, and picking
+  tools requires either (a) a paid LLM API call triggered server-side
+  for every incoming message - a real, ongoing cost, which conflicts
+  with this project's standing zero-cost rule until the user
+  explicitly decides otherwise, or (b) treating a live Claude Code
+  session (not an always-on VPS daemon) as the brain, with Hermes/n8n/
+  Telegram as the hands - which is zero-cost but is not a 24/7
+  autonomous responder to arbitrary Telegram text. This fork was
+  raised to the user rather than guessed at.
+- **Browser automation**: no headless browser/automation framework
+  (e.g. Playwright) is installed on the VPS. Installing one is a real
+  system change (new packages, more resource usage, larger attack
+  surface) that needs a go-ahead first.
+- **Gmail/OAuth**: no Google Cloud project or OAuth client exists for
+  Hermes. Creating one is a new credential and needs the user's
+  explicit go-ahead per the standing project rule (stop before
+  creating a new credential).
+- **Site registration / account creation**: depends on both of the
+  above; not built yet.
+
+### TODO (explicitly deferred - do not implement until the user
+provides sources and stats)
+- **Scrap metal / recyclables price collection and reporting**: out of
+  scope for this phase and every phase before it. No workflow, scraper,
+  or schedule for this exists or should be created until the user
+  specifies real sources and statistics to use.
