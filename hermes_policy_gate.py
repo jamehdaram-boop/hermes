@@ -53,7 +53,7 @@ DESTRUCTIVE_PATTERNS = [
     "truncate", "format disk", "reset", "uninstall", "unregister",
     "deactivate account", "close account", "rm -rf", "docker rm",
     "docker volume rm", "docker system prune", "factory reset",
-    "حذف", "پاک کردن", "پاک‌کردن", "از بین بردن", "نابود", "ریست",
+    "حذف", "پاک", "از بین بردن", "نابود", "ریست",
     "بازنشانی", "غیرفعال‌سازی حساب", "بستن حساب",
 ]
 

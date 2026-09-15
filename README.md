@@ -573,3 +573,40 @@ execution, Browser, Gmail, and the Policy Gate's place in the full
 picture) - see **[AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md)** for
 the complete document. Nothing was activated, installed, or changed in
 production while writing it.
+
+## Phase 9: Groq Free AI Brain - prepared, test-only (no credential yet)
+
+`hermes_ai_brain.py` (new): the Tier 1 "AI Brain" from
+`AGENT_ARCHITECTURE.md`, built and fully tested via `--test` - NOT
+wired into the live Telegram Bridge. Real inference target: Groq Free,
+model `qwen/qwen3.6-27b` (current recommended Qwen model on Groq -
+strong Persian tokenization, JSON mode + tool-calling, not deprecated).
+Used only if `HERMES_GROQ_API_KEY` is set in `hermes.env` - **no such
+key exists**, and this phase did not create, request, or store one (no
+cost incurred, no new credential). Without a key, `analyze()` runs in
+a clearly-marked SIMULATED (deterministic, rule-based) mode so the
+*routing and safety logic* - the part that actually matters for
+Hermes's own safety guarantees - could be fully exercised anyway.
+
+Safety design: the brain only ever proposes an intent/plan/tools; the
+actual allow/block decision always comes from an independent, separate
+call to `hermes_policy_gate.evaluate()` against the raw request text,
+never from the brain's own self-reported risk guess. Proven with an
+adversarial test that forces the brain to claim "risk_hint: none" on a
+delete request - the gate still blocks it.
+
+Testing this phase found and fixed a real gap in
+`hermes_policy_gate.py`'s Persian pattern list: `"پاک کردن"` (infinitive)
+did not match the imperative `"پاک کن"` ("delete it!"), letting a
+plainly destructive Persian request slip through undetected. Replaced
+with the broader stem `"پاک"`, re-verified against `hermes_tasks.py`'s
+existing simulated tests (no regression) and `hermes_security_test.py`
+(31/31 still pass).
+
+All 7 required tests pass in SIMULATED mode: simple Persian, multi-step
+Persian, browser-need detection, Gmail-need detection, DELETE ->
+blocked, PAYMENT -> blocked, and the adversarial non-bypass proof.
+
+**What's needed for the next step**: a Groq API key (free tier) added
+to `hermes.env` as `HERMES_GROQ_API_KEY` - this was deliberately not
+requested or created in this phase, per instruction.
